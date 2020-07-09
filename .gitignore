@@ -1,0 +1,7 @@
+.snakemake
+*.pyc
+*.egg-info
+*.ipynb_checkpoints
+venv
+sourceme
+.DS_Store
