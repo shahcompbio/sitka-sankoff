@@ -110,7 +110,7 @@ def main():
     #tree2 = loads(tree)[0]
     #print(0 + np.inf)
     cn_max = 10
-    num_site = 1000000
+    num_site = 10000
     leaf_cns = {}
     tree1.count_leaves()
 
