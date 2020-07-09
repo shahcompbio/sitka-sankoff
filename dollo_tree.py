@@ -7,6 +7,7 @@ class TreeNode(object):
         self.children = []
         self.name = name
         self.label = label
+        self.num_leaves = 0
 
 
     def __eq__(self, other):
@@ -42,6 +43,20 @@ class TreeNode(object):
                 for leaf in child.leaves:
                     yield leaf
 
+    def count_leaves(self):
+        '''
+        List of leaves in the tree rooted at self.
+        '''
+        if len(self.children) == 0:
+            self.num_leaves = 1
+
+        else:
+            for child in self.children:
+                for leaf in child.leaves:
+                    leaf.count_leaves()
+                    self.num_leaves = self.num_leaves + leaf.num_leaves
+                    print(leaf.name, self.num_leaves)
+
     @property
     def nodes(self):
         '''
@@ -50,6 +65,7 @@ class TreeNode(object):
         yield self
         for descendent in self.descendents:
             yield descendent
+
 
     @property
     def descendents(self):

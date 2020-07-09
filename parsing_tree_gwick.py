@@ -1,4 +1,5 @@
 import pathlib
+import sys
 
 from dollo_tree import TreeNode
 import _delete as dl
@@ -100,26 +101,32 @@ def parse_node(s):
 
 
 def main():
+    #num_site = int(sys.argv[1])
+    #cn_max = int(sys.argv[2])
     fname = "OV2295-cn-tree.newick"
-    tree_gw = "(a:1,(d:2,b:3,c:4))"
-    #tree = read(fname)[0]
-    tree1 = loads(tree_gw)[0]
-    tree2 = loads(tree_gw)[0]
-    print(tree1.print_attr_map("name"))
-    print(tree1.is_leaf)
+    #tree_gw = "(a:1,(d:2,b:3,c:4),(e:1, f:2))"
+    tree1 = read(fname)[0]
+    #tree1 = loads(tree_gw)[0]
+    #tree2 = loads(tree)[0]
     #print(0 + np.inf)
-    leaf_cns = {"a":[1,2], "b":[2,4], "c":[3,6], "d":[4,8]}
-    leaf_cns1 = {"a": 2, "b":4, "c": 6, "d": 8}
-    dl.calc_score_recursive(tree1, leaf_cns1, 1, 8)
-    print(tree1.cn_score)
-    dl.calc_score_recursive_vect(tree2, leaf_cns, 1, 8, 2)
-    print(tree2.cn_score)
+    cn_max = 10
+    num_site = 1000000
+    leaf_cns = {}
+    tree1.count_leaves()
 
-    '''
     for node in tree1.nodes:
-        print(node.name)
-        print(node.cn_score)
-    '''
+        leaf_cns[node.name] = np.random.randint(cn_max, size=num_site)
+    print(leaf_cns)
+    #leaf_cns = {"a":[1,2], "b":[2,4], "c":[3,6], "d":[4,8]}
+    #dl.calc_score_recursive(tree1, leaf_cns1, 1, 8)
+    #print(tree1.cn_score)
+    dl.calc_score_recursive_vect(tree1, leaf_cns, 1, cn_max, num_site)
+    print(tree1.cn_score)
+    print("number of leaf: %d" % tree1.num_leaves)
+    print("number of sites: %d" % num_site)
+    print("number of max copies: %d" % cn_max)
+
+
 
 
 main()
