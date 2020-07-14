@@ -8,6 +8,7 @@ class TreeNode(object):
         self.name = name
         self.label = label
         self.num_leaves = 0
+        self.cn_backtrack  = None
 
 
     def __eq__(self, other):
@@ -55,7 +56,7 @@ class TreeNode(object):
                 for leaf in child.leaves:
                     leaf.count_leaves()
                     self.num_leaves = self.num_leaves + leaf.num_leaves
-                    print(leaf.name, self.num_leaves)
+                    #print(leaf.name, self.num_leaves)
 
     @property
     def nodes(self):

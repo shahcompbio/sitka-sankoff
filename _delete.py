@@ -41,7 +41,6 @@ def calc_score_recursive(node, leaf_cns, segment_length, cn_max):
 def calc_score_recursive_vect(node, leaf_cns, segment_length, cn_max, num_site):
     if node.is_leaf:
         node.cn_score = np.full((num_site, cn_max + 1), np.inf)
-
         #extract the position of each copy from leaf_cns
         #print("node", node.name)
         #print("list", leaf_cns[node.name])
@@ -49,13 +48,14 @@ def calc_score_recursive_vect(node, leaf_cns, segment_length, cn_max, num_site):
 
         for site, cp_num in enumerate(leaf_cns[node.name]):
             node.cn_score[site, cp_num] = 0.
+            #node.cn_backtrack[site] = cp_num
         #print("score_after", node.cn_score)
 
     else:
         node.cn_score = np.zeros((num_site, cn_max + 1))
         for child in node.children:
             calc_score_recursive_vect(child, leaf_cns, segment_length, cn_max, num_site)
-            child.cn_backtrack = [[]] * (cn_max + 1)
+            child.cn_backtrack = [[]]* num_site
 
         for cn in range(0, cn_max + 1):
             #print("--------cn = %d---------"%cn)
@@ -71,8 +71,11 @@ def calc_score_recursive_vect(node, leaf_cns, segment_length, cn_max, num_site):
                     #print("cn_s_after", child_cn_scores)
                 min_score = np.amin(child_cn_scores, axis=1)
                 #print("min_score", min_score)
-                #child.cn_backtrack[cn] = np.where(min_score == child_cn_scores)[0]
-
+                #print("child_cn_scores", child_cn_scores)
+                #print("child_cn_backtrack", child.cn_backtrack)
+                for site in range(num_site):
+                    #print("site", site)
+                    child.cn_backtrack[site] = np.where(child_cn_scores[site, :] == min_score[site])
                 node.cn_score[:, cn] += min_score
 
 
