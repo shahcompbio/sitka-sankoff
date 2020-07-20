@@ -12,7 +12,7 @@ def calc_score_recursive(node, leaf_cns, segment_length, cn_max):
     if node.is_leaf:
         node.cn_score = np.repeat(np.inf, cn_max + 1)
 
-        node.cn_score[leaf_cns[node.name]] = 0.
+        node.cn_score[leaf_cns[node.label]] = 0.
 
     else:
         node.cn_score = np.zeros(cn_max + 1)
@@ -54,11 +54,11 @@ def calc_score_recursive_vect(node, leaf_cns, segment_length, cn_max, num_bin):
     if node.is_leaf:
         node.cn_score = np.full((num_bin, cn_max + 1), np.inf)
         #extract the position of each copy from leaf_cns
-        #print("node", node.name)
-        #print("list", leaf_cns[node.name])
+        #print("node", node.label)
+        #print("list", leaf_cns[node.label])
         #print("score", node.cn_score)
 
-        for bin, cp_num in enumerate(leaf_cns[node.name]):
+        for bin, cp_num in enumerate(leaf_cns[node.label]):
             node.cn_score[bin, cp_num] = 0.
             #node.cn_backtrack[site] = cp_num
         #print("score_after", node.cn_score)
@@ -180,7 +180,7 @@ def tabulate_cnv_losses(cnvs, nodes, tree):
     nodes['alt'] = nodes['event_id'].apply(lambda a: a.split(':')[3])
 
     # Add leaf name to nodes
-    node_to_sample_id = dict([(leaf.label, leaf.name) for leaf in tree.leaves])
+    node_to_sample_id = dict([(leaf.label, leaf.label) for leaf in tree.leaves])
     node_to_sample_id = pd.Series(node_to_sample_id).reset_index()
     node_to_sample_id.columns = 'node', 'sample_id'
     nodes = nodes.merge(node_to_sample_id, on='node', how='left')
