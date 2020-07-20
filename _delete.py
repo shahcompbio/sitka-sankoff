@@ -37,30 +37,42 @@ def calc_score_recursive(node, leaf_cns, segment_length, cn_max):
 
                 node.cn_score[cn] += min_score
 
+def cn_backtrack_root(tree, num_bin):
+    """
+    calculate the copy number for the root
+    :param tree: the root of the tree
+    :param num_bin: total number of bins
+    :return:
+    """
+    tree.cn_backtrack = [[]] * num_bin
+    min_score = np.amin(tree.cn_score, axis=1)
+    for bin in range(num_bin):
+        # print("bin", bin)
+        tree.cn_backtrack[bin] = np.where(tree.cn_score[bin, :] == min_score[bin])
 
-def calc_score_recursive_vect(node, leaf_cns, segment_length, cn_max, num_site):
+def calc_score_recursive_vect(node, leaf_cns, segment_length, cn_max, num_bin):
     if node.is_leaf:
-        node.cn_score = np.full((num_site, cn_max + 1), np.inf)
+        node.cn_score = np.full((num_bin, cn_max + 1), np.inf)
         #extract the position of each copy from leaf_cns
         #print("node", node.name)
         #print("list", leaf_cns[node.name])
         #print("score", node.cn_score)
 
-        for site, cp_num in enumerate(leaf_cns[node.name]):
-            node.cn_score[site, cp_num] = 0.
+        for bin, cp_num in enumerate(leaf_cns[node.name]):
+            node.cn_score[bin, cp_num] = 0.
             #node.cn_backtrack[site] = cp_num
         #print("score_after", node.cn_score)
 
     else:
-        node.cn_score = np.zeros((num_site, cn_max + 1))
+        node.cn_score = np.zeros((num_bin, cn_max + 1))
         for child in node.children:
-            calc_score_recursive_vect(child, leaf_cns, segment_length, cn_max, num_site)
-            child.cn_backtrack = [[]]* num_site
+            calc_score_recursive_vect(child, leaf_cns, segment_length, cn_max, num_bin)
+            child.cn_backtrack = [[]]* num_bin
 
         for cn in range(0, cn_max + 1):
             #print("--------cn = %d---------"%cn)
             for child in node.children:
-                child_cn_scores = np.zeros((num_site, cn_max + 1))
+                child_cn_scores = np.zeros((num_bin, cn_max + 1))
                 for child_cn in range(0, cn_max + 1):
                     #print("-------Child_cn = %d-------" %child_cn)
                     transition_score = calculate_transition_score(cn, child_cn, segment_length)
@@ -73,9 +85,9 @@ def calc_score_recursive_vect(node, leaf_cns, segment_length, cn_max, num_site):
                 #print("min_score", min_score)
                 #print("child_cn_scores", child_cn_scores)
                 #print("child_cn_backtrack", child.cn_backtrack)
-                for site in range(num_site):
-                    #print("site", site)
-                    child.cn_backtrack[site] = np.where(child_cn_scores[site, :] == min_score[site])
+                for bin in range(num_bin):
+                    #print("bin", bin)
+                    child.cn_backtrack[bin] = np.where(child_cn_scores[bin, :] == min_score[bin])
                 node.cn_score[:, cn] += min_score
 
 

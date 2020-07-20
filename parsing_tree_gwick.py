@@ -2,12 +2,17 @@ import pathlib
 import sys
 import string
 import random
+import os
+import pandas as pd
 
 from dollo_tree import TreeNode
 import _delete as dl
 import numpy as np
 
 from graphviz import Digraph
+from pandas import DataFrame
+from visualize_score import plot_cell_cn_profile
+import matplotlib.pyplot as plt
 
 LIB = []
 
@@ -126,27 +131,48 @@ def parse_node(s):
     return new_tree
 
 
-def visualize_tree(tree, fname, cn_max, bin=None):
+def visualize_tree(tree, fname, cn_max, num_bins, clones = None, df=None, display=None, bins=None, chromosome=None):
     """
+    visualize the tree and save the result as pdf file.
+    3 modes:
+        graph: visualize each node using scatter plot.
+            The graph for each node will be saved in the folder "pasimony_figres/fname"
+        table: visualize each node with data table
+        None: visualize each node with its name
+    :param tree: TreeNode object to be visualized
+    :param fname: filename for the saved gv file as well as pdf
+    :param cn_max: maximum copy number
+    :param num_bins: total number of bins in the data
+    :param df: (only used when display == 'graph') input DataFrame for visualizing the nodes into graph
+    :param display: diplay mode ("graph" or "table", or "None")
+    :param bins: (optional) index of bins you wish to visualize (a list of integers)
+    :param chromosome: (optional for display == "graph") choose specific chromosome you want to visualize
 
-    :param tree:
-    :param fname:
-    :param bin:
-    :return:
     """
     dot = Digraph(comment='Tree for %s' % fname)
     i = 0
+    if clones is None:
+        vis_nodes = [node.name for node in tree.nodes]
     for node in tree.nodes:
         for child in node.children:
-            node_html = node_vis(node, bin, cn_max)
-            child_html = node_vis(child, bin, cn_max)
-            dot.node(node.name, node_html)
-            dot.node(child.name, child_html)
-            dot.edge(node.name, child.name)
-    dot.view()
+            if child.name in vis_nodes:
+                # different modes of displaying the node
+                if display == None:
+                    node_display = node.name
+                    child_display = child.name
+                elif display == "table":
+                    node_display = node_vis_table(node, num_bins, bins, cn_max)
+                    child_display = node_vis_table(child, num_bins, bins, cn_max)
+                elif display == "graph":
+                    node_display = node_vis_graph(df, node, num_bins, bins, cn_max, chromosome, fname, s=5)
+                    child_display = node_vis_graph(df, child, num_bins, bins, cn_max, chromosome, fname, s=5)
+                dot.node(node.name, node_display)
+                dot.node(child.name, child_display)
+                dot.edge(node.name, child.name)
+    dot.render('%s.gv' % fname, view=True)
 
 
-def node_vis(node, bins, cn_max):
+def node_vis_table(node, num_bins, bins, cn_max):
     """
     gereating html code for visualizing the graph
     :param node: the node for graph generation
@@ -159,14 +185,15 @@ def node_vis(node, bins, cn_max):
         first_row += '''<td> %d </td>''' % i
     first_row += '''</tr>'''
     html_table = '''<<table><tr><td> node: %s </td></tr>''' % node.name + first_row
-    print("bins", bins)
+    if bins == None:
+        bins = [i for i in range(num_bins)]
     for bin in bins:
         one_row = '''<tr><td> %s </td>''' % bin  # scope='row'
         parsimony_scores = node.cn_score[bin, :]
         cn_backtrack = node.cn_backtrack[bin]
-        print("node", node.name)
-        print("bin_backtrack", type(cn_backtrack))
-        print("bin_backtrack1", cn_backtrack)
+        # print("node", node.name)
+        # print("bin_backtrack", type(cn_backtrack))
+        # print("bin_backtrack1", cn_backtrack)
         for cn in range(cn_max + 1):
             score = parsimony_scores[cn]
             if cn in cn_backtrack[0].tolist():
@@ -176,48 +203,255 @@ def node_vis(node, bins, cn_max):
         one_row += '''</tr>'''
         html_table += one_row
     html_table += '''</table>>'''
-    print(html_table)
+    # print(html_table)
     with open("file.txt", "w") as f:
         f.write(html_table)
     f.close()
     return html_table
 
 
+def extracting_score(df, node, num_bins, name_tree):
+    """
+    extracting parsimony score as well as inferred copy number
+    (as an input for node_vis_graph)
+    from the dataset and save it to a csv file.
+    :param df: data frame to be extracted
+    :param node: input TreeNode object
+    :param num_bins: total number of bins in the dataset
+    :return:
+    a DataFrame object containing parsimony scores and inferred copy number
+    of the tree node
+    """
+    assert (len(node.cn_backtrack) == num_bins), "not enough bins for back trackers"
+    copy_number = [node.cn_backtrack[bin][0].tolist()[0] for bin in range(num_bins)]
+    # print(copy_number)
+    parsimony_score = [node.cn_score[bin, cn] for (bin, cn) in enumerate(copy_number)]
+    df["copy_number"] = np.array(copy_number)
+    df["parsimony_score"] = np.array(parsimony_score)
+    dir = file_dir(name_tree, "")
+    dir = os.path.join(dir, "score_%s.csv" % node.name)
+
+    df.to_csv(dir)
+    return df
+
+
+def node_vis_graph(df, node, num_bins, bins, cn_max, chromosome, name_tree, s=5):
+    '''
+    save and visualize current node using pyplot
+    :param df: data frame for current node
+    :param node: TreeNode object for current node
+    :param num_bins: total number of bins
+    :param cn_max: max copy number for computational efficiency
+    :param chromosome: if there is a specific chromosome to visualize
+    :param name_tree: name of the tree
+    :param s: size of each point
+    :return:
+    html_image: html code for the saved image
+    '''
+    df = extracting_score(df, node, num_bins, name_tree).copy()
+    fig = plt.figure(figsize=(16, 4))
+    ax = plt.gca()
+    plt.title(node.name)
+    plot_cell_cn_profile(ax, df, "parsimony_score", "copy_number", cn_max, chromosome, s)
+    dir = file_dir(name_tree)
+    dir = os.path.join(dir, "%s.png" % node.name)
+    plt.savefig(dir)
+    plt.close(fig)
+    html_image = '''<<TABLE>
+   <TR><TD><IMG SRC=\"%s\"/></TD></TR></TABLE>>''' % dir
+    return html_image
+
+
+def file_dir(name_tree, sub_dir = "figure"):
+    '''
+    create a directory for saving figures in the current working directory
+    :param name_node: name of current node
+    :param name_tree: name of the tree
+    :param figures: is this directory for saving figures
+    :return:
+    dir: directory of tree generated
+    '''
+    cwd = os.getcwd()
+
+    path = os.path.join(cwd, "parsimony_%s"%sub_dir)
+    if not os.path.exists(path):
+        os.mkdir(path)
+    path = os.path.join(path, name_tree)
+    if not os.path.exists(path):
+        os.mkdir(path)
+    return path
+
+def read_csv(filename, nodes):
+    """
+    read the csv file containing copy number data
+    :param filename: file name of the csv ("filename.csv")
+    :param nodes: list of nodes contained in the file
+    :return:
+    df_location: a dataframe containing the location information of bins
+    leaf_cns: a dataframe containing the copy number of each bins for all leaves
+    num_bins: total number of bins in the dataset
+    """
+    df = pd.read_csv(filename, sep='\t', header=0)
+    # data cleaning
+    df['chr'] = df['chr'].astype(str)
+    df = df.loc[df["start"] > 0]
+    df["start"] = df["start"].astype(float)
+    df["end"] = df["end"].astype(float)
+    leaf_cns = {}
+    for node in nodes:
+        leaf_cns[node] = df[node]
+    num_bins = len(df.index)
+    # returning the location data only
+    df_location = df.drop(columns=nodes).copy()
+    print(df_location.chr.unique())
+    return df_location, leaf_cns, num_bins
+
+
+def sankoff_parimony(tree_fname, cp_fname,
+                     segment_length,
+                     cn_max, bins, clone_fname = None, display=None, vis=False):
+    # read the tree from newick format
+    print("---- Reading the tree : %s.newick----" % tree_fname)
+    tree = read(tree_fname + ".newick")[0]
+    nodes = [node.name for node in tree.leaves]
+
+    # read the copy number data in specified file
+    print("---- Reading copy number data: %s ----" % cp_fname)
+    df_location, leaf_cns, num_bins = read_csv(cp_fname, nodes)
+
+    # calculate the parsimony score
+    print("---- Calculating parsimony score: %s ----" % tree_fname)
+    dl.calc_score_recursive_vect(tree, leaf_cns,
+                                 segment_length,
+                                 cn_max, num_bins)
+    dl.cn_backtrack_root(tree, num_bins)
+    if clone_fname is not None:
+        _, clones = label_clones(clone_fname, tree)
+
+
+    if vis:
+        # visualize the tree
+        print("---- Visualizing the tree: %s ----" % tree_fname)
+        # pt.visualize_tree(tree, tree_fname, cn_max, num_bins, display, bins)
+        if clone_fname is not None:
+            visualize_tree(tree, tree_fname, cn_max, num_bins, clones, df_location, display, bins)
+        else:
+            visualize_tree(tree, tree_fname, cn_max, num_bins, df_location, display, bins)
+
+    # save the score of the root in a csv file:
+    print("---- Saving the score: %s ----" % tree_fname)
+    pd.DataFrame(tree.cn_score.transpose(), columns=[str(i + 1) for i in range(num_bins)]).to_csv(tree_fname + ".csv")
+
+def read_assignment(fname):
+    """
+    read the clone assignment files
+    :param fname: filename for clone assignments
+    :return:
+    assignments: the dictionary object with key as clone names,
+
+    clones: list of clones
+
+    """
+    df = pd.read_csv(fname, sep='\t', header=0)
+    clones = df['clone_id'].unique().tolist()
+    clones.remove("None")
+    assignment = {}
+    for clone in clones:
+        cells = df.loc[df["clone_id"] == clone]["cell_id"]
+        assignment[clone] = set(cells.tolist())
+    return assignment, clones
+
+def label_clones(fname, tree):
+    assignment, clones = read_assignment(fname)
+    num_cluster = len(assignment)
+    bfs([], [], tree, num_cluster, assignment)
+    return assignment, clones
+
+def bfs(queue, visited, tree, count, assignment):
+    clusters = assignment.values()
+    #print(clusters)
+    visited.append(tree)
+    queue.append(tree)
+
+    while (queue and count != 0):
+        s = queue.pop(0)
+        #print("current node", s.name, count)
+        for child in s.children:
+            if child in visited:
+                visited.append(child)
+                queue.append(child)
+        leave_names = set([leaf.name for leaf in s.leaves])
+        #print("leaves", leave_names)
+        if leave_names in clusters:
+            #print("Yes")
+            s.name = get_key(leave_names, assignment)
+            count -= 1
+
+def get_key(val, my_dict):
+    for key, value in my_dict.items():
+         if val == value:
+             return key
+
+
 def main():
     # num_site = int(sys.argv[1])
     # cn_max = int(sys.argv[2])
-    #fname = "OV2295-cn-tree.newick"
-    fname = "/work/shah/funnellt/projects/sc-mutsig/analysis/corrupt_tree/2295/sitka_hdbscan_tree.newick"
-    #tree_gw = "(a,(b, c, d))"
-    tree1 = read(fname)[0]
+    '''
+    tree_gw = "((A,G), ((C,(D,B)),(F,E)))"
+    tree1 = loads(tree_gw)[0]
+    assignment = {"X": set(["A","G"]), "Y":set(["B", "C", "D"]), "Z": set(["F","E"])}
+    tree1.print_attr_map("name")
+    label_clones(assignment, tree1)
+    tree1.print_attr_map("name")
+    '''
+
+    #read_assignment("SA1053_clones.tsv")
+    tree1 = read("SA1053_sitka_hdbscan_tree.newick")[0]
+    print("yeah")
+    label_clones("SA1053_clones.tsv", tree1)
+    tree1.print_attr_map("name")
+
+
+    '''
+    cp_fname = "SA1053_padded_chrom_cn_clones.tsv"
+    tree_name = "SA1053_clone_tree"
+    segment_length = 1
+    cn_max = 12
+    bins = [0, 500, 600, 700, 800]
+    display = "graph"
+
+    # print(signature(pt.visualize_tree))
+    sankoff_parimony(tree_name, cp_fname,
+                     segment_length,
+                     cn_max, bins,
+                     display, vis=True)
+
+
+    tree_gw = "((E,D),((C,(A,B)),(F,G)))"
     tree1 = loads(tree_gw)[0]
     print("Tree1")
-    # tree1.print_attr_map("name")
-    # tree2 = loads(tree)[0]
-    # print(0 + np.inf)
     cn_max = 4
     num_site = 2
     leaf_cns = {}
     tree1.count_leaves()
+
     for node in tree1.leaves:
         leaf_cns[node.name] = np.random.randint(cn_max, size=num_site)
 
-    # print(leaf_cns)
-    # leaf_cns = {"a":[1,2], "b":[2,4], "c":[3,6], "d":[4,8]}
-    # dl.calc_score_recursive(tree1, leaf_cns1, 1, 8)
-    # print(tree1.cn_score)
     dl.calc_score_recursive_vect(tree1, leaf_cns, 1, cn_max, num_site)
     print(tree1.cn_score)
     print("number of leaf: %d" % tree1.num_leaves)
     print("number of sites: %d" % num_site)
     print("number of max copies: %d" % cn_max)
     tree1.cn_backtrack = node.cn_backtrack
-    '''
+
+    visualize_tree(tree1, "name", cn_max, [0, 1], "graph")
+
+
     for node in tree1.nodes:
         print("name", node.name)
         print("backtrack", node.cn_backtrack)
     '''
-    visualize_tree(tree1, "name", cn_max, [0, 1])
 
 
 main()
